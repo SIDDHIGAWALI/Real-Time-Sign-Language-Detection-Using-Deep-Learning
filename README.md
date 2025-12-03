@@ -24,8 +24,6 @@ Graph Neural Networks (GCN / GAT)
 The project uses image/landmark-based datasets containing various sign language gestures. Custom datasets can also be added easily.
 
 🚀 Future Enhancements
-Deploy as a web or mobile application
-
-Expand to full sentence-level sign recognition
-
+Deploy as a web or mobile application<br>
+Expand to full sentence-level sign recognition<br>
 Add support for more sign languages
