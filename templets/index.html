@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ASL Detection WebApp</title>
+</head>
+<body>
+    <h2>ASL Finger Spelling Detection</h2>
+    <img src="{{ url_for('video_feed') }}" width="640" height="480">
+    <div>
+        <button onclick="sendAction('clear')">Clear</button>
+        <button onclick="sendAction('undo')">Undo</button>
+        <button onclick="sendAction('save')">Save</button>
+    </div>
+    <div id="status"></div>
+
+    <script>
+        async function updateStatus(){
+            let res = await fetch('/status');
+            let data = await res.json();
+            document.getElementById('status').innerHTML = 
+                "Current Word: " + data.current_word + "<br>" +
+                "Sentence: " + data.sentence + "<br>" +
+                "Suggestions: " + data.suggestions;
+        }
+        setInterval(updateStatus, 1000);
+
+        async function sendAction(cmd){
+            await fetch('/action', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({cmd:cmd})
+            });
+        }
+    </script>
+</body>
+</html>
