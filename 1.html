@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASL Real-Time Detection</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            animation: fadeInDown 1s ease-out;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #00f2fe, #4facfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .video-section {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            animation: fadeInLeft 1s ease-out;
+        }
+
+        .video-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        #videoElement {
+            width: 100%;
+            height: 400px;
+            object-fit: cover;
+            border-radius: 15px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .roi-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -60%);
+            width: 250px;
+            height: 250px;
+            border: 3px solid #00ff88;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 136, 0.5); }
+            50% { box-shadow: 0 0 30px rgba(0, 255, 136, 0.8); }
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #00ff88, #00d4aa);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(255, 107, 107, 0.3);
+        }
+
+        .info-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            animation: fadeInRight 1s ease-out;
+            height: fit-content;
+        }
+
+        .prediction-display {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+        }
+
+        .current-sign {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #00ff88;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .confidence {
+            font-size: 1.1rem;
+            opacity: 0.8;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00d4aa);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 4px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #4facfe;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        .spelling-section {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            animation: fadeInUp 1s ease-out;
+        }
+
+        .current-word {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .word-display {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #ffeb3b;
+            word-break: break-all;
+        }
+
+        .suggestions {
+            margin-top: 10px;
+        }
+
+        .suggestion-chip {
+            display: inline-block;
+            background: rgba(116, 75, 162, 0.6);
+            color: white;
+            padding: 5px 12px;
+            margin: 3px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .suggestion-chip:hover {
+            background: rgba(116, 75, 162, 0.8);
+            transform: scale(1.05);
+        }
+
+        .sentence-display {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 20px;
+            border-radius: 10px;
+            min-height: 120px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .sentence-text {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #e8f5e8;
+            word-wrap: break-word;
+        }
+
+        .instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+
+        .instruction-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .instruction-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            background: #4facfe;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+
+        .status-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .status-active {
+            background: linear-gradient(45deg, #00ff88, #00d4aa);
+            color: white;
+        }
+
+        .status-inactive {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInLeft {
+            from { opacity: 0; transform: translateX(-30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes fadeInRight {
+            from { opacity: 0; transform: translateX(30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 1200px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2.5rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                justify-content: center;
+            }
+            
+            .btn {
+                padding: 10px 20px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ASL Real-Time Detection</h1>
+            <p>Advanced finger spelling with AI-powered gesture recognition</p>
+        </div>
+
+        <div class="status-indicator" id="statusIndicator">
+            Camera Inactive
+        </div>
+
+        <div class="main-content">
+            <div class="video-section">
+                <div class="video-container">
+                    <video id="videoElement" autoplay muted playsinline></video>
+                    <div class="roi-overlay"></div>
+                </div>
+                
+                <div class="controls">
+                    <button class="btn btn-primary" id="startBtn">Start Detection</button>
+                    <button class="btn btn-secondary" id="stopBtn">Stop Detection</button>
+                    <button class="btn btn-secondary" id="clearBtn">Clear All</button>
+                    <button class="btn btn-secondary" id="undoBtn">Undo Word</button>
+                    <button class="btn btn-secondary" id="saveBtn">Save Session</button>
+                    <button class="btn btn-danger" id="resetBtn">Reset</button>
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <div class="prediction-display">
+                    <div class="current-sign" id="currentSign">-</div>
+                    <div class="confidence">Confidence: <span id="confidenceValue">0%</span></div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="fpsValue">0</div>
+                        <div class="stat-label">FPS</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="wordCount">0</div>
+                        <div class="stat-label">Words</div>
+                    </div>
+                </div>
+
+                <div class="instructions">
+                    <div class="instruction-item">
+                        <div class="instruction-icon">1</div>
+                        <span>Hold gesture for 1.5s to add letter</span>
+                    </div>
+                    <div class="instruction-item">
+                        <div class="instruction-icon">2</div>
+                        <span>Hold SPACE for 1s to finish word</span>
+                    </div>
+                    <div class="instruction-item">
+                        <div class="instruction-icon">3</div>
+                        <span>Hold DEL for 2s to delete</span>
+                    </div>
+                    <div class="instruction-item">
+                        <div class="instruction-icon">4</div>
+                        <span>Position hand in green box</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="spelling-section">
+            <h3 style="margin-bottom: 20px; color: #4facfe;">Finger Spelling</h3>
+            
+            <div class="current-word">
+                <label style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 5px; display: block;">Current Word:</label>
+                <div class="word-display" id="currentWord">_</div>
+                <div class="suggestions" id="suggestions"></div>
+            </div>
+
+            <div>
+                <label style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 10px; display: block;">Complete Sentence:</label>
+                <div class="sentence-display">
+                    <div class="sentence-text" id="sentenceText">Start spelling to see your sentence here...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class ASLDetectionApp {
+            constructor() {
+                this.isDetecting = false;
+                this.videoElement = document.getElementById('videoElement');
+                this.currentWord = '';
+                this.sentence = '';
+                this.wordHistory = [];
+                this.currentPrediction = '';
+                this.lastPredictionTime = 0;
+                this.predictionHoldTime = 1500; // 1.5 seconds
+                this.deleteHoldTime = 2000; // 2 seconds
+                this.spaceHoldTime = 1000; // 1 second
+                this.predictionBuffer = [];
+                this.maxBufferSize = 10;
+                this.confidenceThreshold = 0.75;
+                this.fps = 0;
+                this.frameCount = 0;
+                this.lastFpsTime = Date.now();
+                
+                // Common words for suggestions
+                this.commonWords = new Set([
+                    'hello', 'world', 'how', 'are', 'you', 'what', 'when', 'where',
+                    'why', 'who', 'good', 'bad', 'yes', 'no', 'please', 'thank',
+                    'sorry', 'help', 'love', 'like', 'want', 'need', 'time', 'day',
+                    'night', 'morning', 'afternoon', 'evening', 'food', 'water',
+                    'home', 'work', 'school', 'friend', 'family', 'happy', 'sad',
+                    'the', 'and', 'for', 'with', 'this', 'that', 'have', 'will',
+                    'can', 'could', 'should', 'would', 'make', 'take', 'give',
+                    'get', 'go', 'come', 'see', 'know', 'think', 'feel', 'look'
+                ]);
+                
+                this.initializeElements();
+                this.bindEvents();
+                this.loadSession();
+            }
+
+            initializeElements() {
+                this.elements = {
+                    startBtn: document.getElementById('startBtn'),
+                    stopBtn: document.getElementById('stopBtn'),
+                    clearBtn: document.getElementById('clearBtn'),
+                    undoBtn: document.getElementById('undoBtn'),
+                    saveBtn: document.getElementById('saveBtn'),
+                    resetBtn: document.getElementById('resetBtn'),
+                    statusIndicator: document.getElementById('statusIndicator'),
+                    currentSign: document.getElementById('currentSign'),
+                    confidenceValue: document.getElementById('confidenceValue'),
+                    progressFill: document.getElementById('progressFill'),
+                    fpsValue: document.getElementById('fpsValue'),
+                    wordCount: document.getElementById('wordCount'),
+                    currentWord: document.getElementById('currentWord'),
+                    suggestions: document.getElementById('suggestions'),
+                    sentenceText: document.getElementById('sentenceText')
+                };
+            }
+
+            bindEvents() {
+                this.elements.startBtn.addEventListener('click', () => this.startDetection());
+                this.elements.stopBtn.addEventListener('click', () => this.stopDetection());
+                this.elements.clearBtn.addEventListener('click', () => this.clearAll());
+                this.elements.undoBtn.addEventListener('click', () => this.undoLastWord());
+                this.elements.saveBtn.addEventListener('click', () => this.saveSession());
+                this.elements.resetBtn.addEventListener('click', () => this.resetAll());
+            }
+
+            async startDetection() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { 
+                            width: { ideal: 1280 }, 
+                            height: { ideal: 720 },
+                            facingMode: 'user'
+                        }
+                    });
+                    
+                    this.videoElement.srcObject = stream;
+                    this.isDetecting = true;
+                    
+                    this.elements.statusIndicator.textContent = 'Camera Active';
+                    this.elements.statusIndicator.className = 'status-indicator status-active';
+                    
+                    this.elements.startBtn.disabled = true;
+                    this.elements.stopBtn.disabled = false;
+                    
+                    // Start mock prediction loop (replace with actual ML inference)
+                    this.startPredictionLoop();
+                    
+                } catch (error) {
+                    console.error('Error accessing camera:', error);
+                    alert('Could not access camera. Please check permissions.');
+                }
+            }
+
+            stopDetection() {
+                if (this.videoElement.srcObject) {
+                    const tracks = this.videoElement.srcObject.getTracks();
+                    tracks.forEach(track => track.stop());
+                    this.videoElement.srcObject = null;
+                }
+                
+                this.isDetecting = false;
+                
+                this.elements.statusIndicator.textContent = 'Camera Inactive';
+                this.elements.statusIndicator.className = 'status-indicator status-inactive';
+                
+                this.elements.startBtn.disabled = false;
+                this.elements.stopBtn.disabled = true;
+            }
+
+            // Mock prediction loop - replace with actual ML model inference
+            startPredictionLoop() {
+                const aslClasses = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+                                 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
+                                 'U', 'V', 'W', 'X', 'Y', 'Z', 'del', 'nothing', 'space'];
+                
+                const predict = () => {
+                    if (!this.isDetecting) return;
+                    
+                    // Mock prediction - replace with actual model inference
+                    const randomClass = aslClasses[Math.floor(Math.random() * aslClasses.length)];
+                    const confidence = Math.random();
+                    
+                    this.processPrediction(randomClass, confidence);
+                    this.updateFPS();
+                    
+                    setTimeout(predict, 100); // 10 FPS
+                };
+                
+                predict();
+            }
+
+            processPrediction(predictedClass, confidence) {
+                // Add to prediction buffer
+                this.predictionBuffer.push({ class: predictedClass, confidence });
+                if (this.predictionBuffer.length > this.maxBufferSize) {
+                    this.predictionBuffer.shift();
+                }
+                
+                // Smooth prediction
+                const smoothedPred = this.smoothPrediction();
+                if (!smoothedPred) return;
+                
+                const { class: smoothedClass, confidence: smoothedConf } = smoothedPred;
+                
+                // Update UI
+                this.elements.currentSign.textContent = smoothedClass;
+                this.elements.confidenceValue.textContent = `${(smoothedConf * 100).toFixed(1)}%`;
+                
+                // Process for spelling
+                const currentTime = Date.now();
+                
+                if (smoothedClass === this.currentPrediction) {
+                    const holdTime = currentTime - this.lastPredictionTime;
+                    let requiredTime;
+                    
+                    if (smoothedClass === 'del') {
+                        requiredTime = this.deleteHoldTime;
+                    } else if (smoothedClass === 'space') {
+                        requiredTime = this.spaceHoldTime;
+                    } else if (smoothedClass !== 'nothing') {
+                        requiredTime = this.predictionHoldTime;
+                    } else {
+                        requiredTime = 0;
+                    }
+                    
+                    if (requiredTime > 0) {
+                        const progress = Math.min(holdTime / requiredTime * 100, 100);
+                        this.elements.progressFill.style.width = `${progress}%`;
+                        
+                        if (holdTime >= requiredTime) {
+                            if (smoothedClass === 'del') {
+                                this.handleDelete();
+                            } else if (smoothedClass === 'space') {
+                                this.handleSpace();
+                            } else if (smoothedClass !== 'nothing') {
+                                this.addLetter(smoothedClass);
+                            }
+                            this.lastPredictionTime = currentTime;
+                        }
+                    }
+                } else {
+                    this.currentPrediction = smoothedClass;
+                    this.lastPredictionTime = currentTime;
+                    this.elements.progressFill.style.width = '0%';
+                }
+            }
+
+            smoothPrediction() {
+                if (this.predictionBuffer.length < 3) return null;
+                
+                const highConfPreds = this.predictionBuffer.filter(p => p.confidence > this.confidenceThreshold);
+                if (highConfPreds.length < 3) return null;
+                
+                const classCounts = {};
+                highConfPreds.forEach(p => {
+                    classCounts[p.class] = (classCounts[p.class] || 0) + 1;
+                });
+                
+                const mostCommon = Object.keys(classCounts).reduce((a, b) => 
+                    classCounts[a] > classCounts[b] ? a : b
+                );
+                
+                const avgConfidence = this.predictionBuffer
+                    .filter(p => p.class === mostCommon)
+                    .reduce((sum, p) => sum + p.confidence, 0) / 
+                    this.predictionBuffer.filter(p => p.class === mostCommon).length;
+                
+                return { class: mostCommon, confidence: avgConfidence };
+            }
+
+            addLetter(letter) {
+                if (letter && letter !== 'del' && letter !== 'space' && letter !== 'nothing') {
+                    this.currentWord += letter.toLowerCase();
+                    this.updateWordDisplay();
+                }
+            }
+
+            handleDelete() {
+                if (this.currentWord) {
+                    this.currentWord = this.currentWord.slice(0, -1);
+                } else if (this.sentence) {
+                    this.sentence = this.sentence.slice(0, -1);
+                }
+                this.updateDisplay();
+            }
+
+            handleSpace() {
+                if (this.currentWord) {
+                    this.wordHistory.push(this.currentWord);
+                    
+                    if (this.sentence) {
+                        this.sentence += ' ' + this.currentWord;
+                    } else {
+                        this.sentence = this.currentWord;
+                    }
+                    
+                    this.currentWord = '';
+                    this.updateDisplay();
+                }
+            }
+
+            updateWordDisplay() {
+                this.elements.currentWord.textContent = this.currentWord + '_';
+                this.updateSuggestions();
+            }
+
+            updateSuggestions() {
+                if (this.currentWord.length < 2) {
+                    this.elements.suggestions.innerHTML = '';
+                    return;
+                }
+                
+                const suggestions = Array.from(this.commonWords)
+                    .filter(word => word.startsWith(this.currentWord.toLowerCase()))
+                    .slice(0, 3);
+                
+                this.elements.suggestions.innerHTML = suggestions
+                    .map(word => `<span class="suggestion-chip" onclick="app.applySuggestion('${word}')">${word}</span>`)
+                    .join('');
+            }
+
+            applySuggestion(word) {
+                this.currentWord = word;
+                this.updateWordDisplay();
+            }
+
+            updateDisplay() {
+                this.updateWordDisplay();
+                this.elements.sentenceText.textContent = this.sentence || 'Start spelling to see your sentence here...';
+                this.elements.wordCount.textContent = this.wordHistory.length;
+            }
+
+            updateFPS() {
+                this.frameCount++;
+                const now = Date.now();
+                if (now - this.lastFpsTime >= 1000) {
+                    this.fps = this.frameCount;
+                    this.elements.fpsValue.textContent = this.fps;
+                    this.frameCount = 0;
+                    this.lastFpsTime = now;
+                }
+            }
+
+            clearAll() {
+                this.currentWord = '';
+                this.sentence = '';
+                this.wordHistory = [];
+                this.updateDisplay();
+            }
+
+            undoLastWord() {
+                if (this.wordHistory.length > 0) {
+                    this.wordHistory.pop();
+                    this.sentence = this.wordHistory.join(' ');
+                    this.updateDisplay();
+                }
+            }
+
+            saveSession() {
+                const sessionData = {
+                    sentence: this.sentence,
+                    wordHistory: this.wordHistory,
+                    timestamp: Date.now()
+                };
+                
+                localStorage.setItem('asl_session', JSON.stringify(sessionData));
+                
+                // Visual feedback
+                const originalText = this.elements.saveBtn.textContent;
+                this.elements.saveBtn.textContent = 'Saved!';
+                this.elements.saveBtn.style.background = 'linear-gradient(45deg, #00ff88, #00d4aa)';
+                
+                setTimeout(() => {
+                    this.elements.saveBtn.textContent = originalText;
+                    this.elements.saveBtn.style.background = '';
+                }, 2000);
+            }
+
+            loadSession() {
+                const savedSession = localStorage.getItem('asl_session');
+                if (savedSession) {
+                    try {
+                        const sessionData = JSON.parse(savedSession);
+                        this.sentence = sessionData.sentence || '';
+                        this.wordHistory = sessionData.wordHistory || [];
+                        this.updateDisplay();
+                    } catch (error) {
+                        console.error('Error loading session:', error);
+                    }
+                }
+            }
+
+            resetAll() {
+                if (confirm('Are you sure you want to reset everything? This cannot be undone.')) {
+                    this.clearAll();
+                    localStorage.removeItem('asl_session');
+                }
+            }
+        }
+
+        // Initialize the app
+        const app = new ASLDetectionApp();
+
+        // Add some visual enhancements
+        document.addEventListener('DOMContentLoaded', () => {
+            // Add floating particles effect
+            function createParticle() {
+                const particle = document.createElement('div');
+                particle.style.cssText = `
+                    position: fixed;
+                    width: 4px;
+                    height: 4px;
+                    background: rgba(255, 255, 255, 0.8);
+                    border-radius: 50%;
+                    pointer-events: none;
+                    animation: float 6s linear infinite;
+                    z-index: -1;
+                `;
+                
+                particle.style.left = Math.random() * 100 + 'vw';
+                particle.style.animationDelay = Math.random() * 6 + 's';
+                
+                document.body.appendChild(particle);
+                
+                setTimeout(() => {
+                    particle.remove();
+                }, 6000);
+            }
+            
+            // Create particles periodically
+            setInterval(createParticle, 300);
+            
+            // Add CSS animation for floating particles
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes float {
+                    0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+                    10% { opacity: 1; }
+                    90% { opacity: 1; }
+                    100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
+                }
+            `;
+            document.head.appendChild(style);
+        });
+    </script>
+</body>
+</html>
